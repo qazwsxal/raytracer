@@ -1,4 +1,5 @@
 use std::ops;
+use std::iter::Sum;
 
 #[derive(Debug, Copy, Clone, PartialEq, Default)] // PartialEq because NaN != NaN
 pub struct Vec3 {
@@ -203,6 +204,17 @@ impl ops::DivAssign<f32> for Vec3 {
         self.x /= rhs;
         self.y /= rhs;
         self.z /= rhs;
+    }
+}
+
+// Sum over array of Vec3
+
+impl Sum for Vec3 {
+    fn sum<I: Iterator<Item = Vec3>>(iter: I) -> Self {
+        match iter.reduce(|x, y| x + y) {
+            None => Vec3::default(),
+            Some(x) => x,
+        }
     }
 }
 

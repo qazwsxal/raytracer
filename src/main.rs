@@ -10,7 +10,45 @@ use ray::*;
 use hitables::*;
 use camera::Camera;
 use rand::Rng;
+use rand::prelude::ThreadRng;
 
+const NX: usize = 800;
+const NY: usize = 400;
+const INX_F: f32 = 1.0 / (NX as f32);
+const INY_F: f32 = 1.0 / (NY as f32);
+const SAMPLES: i32 = 100;
+
+
+fn main() {
+    let mut array: Array3<u8> = Array3::zeros((NY, NX, 3)); // 250x200 RGB
+    let mut world: Vec<Sphere> = vec![];
+    world.push(Sphere { center: Vec3 { x: 0.0, y: 0.0, z: -1.0 }, radius: 0.5 });
+    world.push(Sphere { center: Vec3 { x: 0.0, y: -100.5, z: -1.0 }, radius: 100.0 });
+    let camera = Camera::default();
+    let mut rng = rand::thread_rng();
+    for (y, mut row) in array.outer_iter_mut().enumerate() {
+        for (x, mut pix) in row.outer_iter_mut().enumerate() {
+            let mut col: Vec3 = (0..SAMPLES)
+                .map(|_| sample(&world, camera, &mut rng, y, x))
+                .sum();
+            col /= SAMPLES as f32;
+            pix[0] = (col[0].powf(1.0 / 2.2) * 255.99) as u8;
+            pix[1] = (col[1].powf(1.0 / 2.2) * 255.99) as u8;
+            pix[2] = (col[2].powf(1.0 / 2.2) * 255.99) as u8;
+        }
+    }
+    assert!(img_out::array_save(array, "img.png".to_string()).is_ok());
+}
+
+fn sample<T: Hitable>(world: T, camera: Camera, rng: &mut ThreadRng, y: usize, x: usize) -> Vec3 {
+    let u_r: f32 = rng.gen();
+    let v_r: f32 = rng.gen();
+    let u = (u_r + x as f32) * INX_F;
+    let v = (v_r + ((NY - y) as f32)) * INY_F;
+    let r = camera.get_ray(u, v);
+    let samp_col = color(r, world);
+    samp_col
+}
 
 fn color<T: Hitable>(ray: Ray, hitable: T) -> Vec3 {
     let t = hitable.hit_rec(&ray);
@@ -25,36 +63,4 @@ fn color<T: Hitable>(ray: Ray, hitable: T) -> Vec3 {
         let newray = Ray { origin: record.loc, direction: newdir };
         0.5 * color(newray, hitable)
     }
-}
-
-fn main() {
-    let nx = 800;
-    let ny = 400;
-    let inx_f = 1.0 / (nx as f32);
-    let iny_f = 1.0 / (ny as f32);
-    let samples = 100;
-    let mut array: Array3<u8> = Array3::zeros((ny, nx, 3)); // 250x200 RGB
-    let mut world: Vec<Sphere> = vec![];
-    world.push(Sphere { center: Vec3 { x: 0.0, y: 0.0, z: -1.0 }, radius: 0.5 });
-    world.push(Sphere { center: Vec3 { x: 0.0, y: -100.5, z: -1.0 }, radius: 100.0 });
-    let camera = Camera::default();
-    let mut rng = rand::thread_rng();
-    for (y, mut row) in array.outer_iter_mut().enumerate() {
-        for (x, mut pix) in row.outer_iter_mut().enumerate() {
-            let mut col = Vec3::default();
-            for _ in 0..samples {
-                let u_r: f32 = rng.gen();
-                let v_r: f32 = rng.gen();
-                let u = (u_r + x as f32) * inx_f;
-                let v = (v_r + ((ny - y) as f32)) * iny_f;
-                let r = camera.get_ray(u, v);
-                col += color(r, &world);
-            }
-            col /= samples as f32;
-            pix[0] = (col[0].powf(1.0/2.2)*255.99) as u8;
-            pix[1] = (col[1].powf(1.0/2.2)*255.99) as u8;
-            pix[2] = (col[2].powf(1.0/2.2)*255.99) as u8;
-        }
-    }
-    assert!(img_out::array_save(array, "img.png".to_string()).is_ok());
 }
